@@ -13,6 +13,7 @@ import {
   Smartphone,
   Monitor,
   X,
+  Download,
 } from 'lucide-react';
 import { Bookmark, Folder, Tag, FilterType, BrowserType } from './types';
 import { storage } from './services/storage';
@@ -52,6 +53,7 @@ export const App: React.FC = () => {
   const [showFolderTree, setShowFolderTree] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   // 데이터 로드
   const reloadData = () => {
@@ -63,7 +65,27 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     reloadData();
+
+    // PWA 설치 이벤트 감지
+    const installHandler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', installHandler);
+    return () => window.removeEventListener('beforeinstallprompt', installHandler);
   }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    } else {
+      alert('스마트폰 브라우저 메뉴 [⋮] → [홈 화면에 추가] 또는 [앱 설치]를 누르시면 어플로 즉시 설치됩니다!');
+    }
+  };
 
   // 브레드크럼 계산
   const breadcrumbs = useMemo(() => {
@@ -164,6 +186,15 @@ export const App: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-1">
+              <button
+                onClick={handleInstallApp}
+                title="내 기기에 어플로 설치하기"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-all border border-blue-200"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>앱 설치</span>
+              </button>
+
               <button
                 onClick={() => setShowSearch(!showSearch)}
                 title="검색"

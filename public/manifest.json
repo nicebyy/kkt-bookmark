@@ -1,0 +1,25 @@
+{
+  "name": "KKT 북마크 - 스마트 북마크 & 계층 폴더 관리자",
+  "short_name": "KKT 북마크",
+  "description": "광고 없는 쾌적함, 강력한 다단계 계층 폴더(트리 구조)와 다중 태그를 갖춘 스마트 북마크 앱",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
