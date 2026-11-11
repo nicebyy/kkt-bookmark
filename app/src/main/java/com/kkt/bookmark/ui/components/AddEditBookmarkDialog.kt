@@ -1,5 +1,6 @@
 package com.kkt.bookmark.ui.components
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
@@ -50,6 +52,7 @@ import com.kkt.bookmark.data.local.entity.BookmarkEntity
 import com.kkt.bookmark.data.local.entity.BookmarkWithTags
 import com.kkt.bookmark.data.local.entity.FolderEntity
 import com.kkt.bookmark.data.local.entity.TagEntity
+import com.kkt.bookmark.data.model.BrowserType
 import com.kkt.bookmark.data.repository.MetadataFetcher
 import kotlinx.coroutines.launch
 
@@ -72,13 +75,18 @@ fun AddEditBookmarkDialog(
     var imageUrl by remember { mutableStateOf(initialBm?.imageUrl) }
     var faviconUrl by remember { mutableStateOf(initialBm?.faviconUrl) }
     var selectedFolderId by remember { mutableStateOf(initialBm?.folderId ?: defaultFolderId) }
+    val context = LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences("kkt_bookmark_prefs", Context.MODE_PRIVATE) }
+    val lastBrowser = remember(prefs) { prefs.getString("last_browser", "default") ?: "default" }
+    var selectedBrowser by remember { mutableStateOf(initialBm?.preferredBrowser ?: lastBrowser) }
     var tagInput by remember { mutableStateOf("") }
     var currentTags by remember {
-        mutableStateOf(initialBookmarkWithTags?.tags?.map { it.name } ?: emptyList())
+        mutableStateOf<List<String>>(initialBookmarkWithTags?.tags?.map { it.name } ?: emptyList())
     }
 
     var isLoadingMeta by remember { mutableStateOf(false) }
     var folderDropdownExpanded by remember { mutableStateOf(false) }
+    var browserDropdownExpanded by remember { mutableStateOf(false) }
 
     fun addTag(tag: String) {
         val clean = tag.trim().removePrefix("#")
@@ -109,24 +117,24 @@ fun AddEditBookmarkDialog(
                         if (isLoadingMeta) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         } else {
-                            IconButton(
-                                onClick = {
-                                    if (url.isNotBlank()) {
-                                        coroutineScope.launch {
-                                            isLoadingMeta = true
-                                            val meta = MetadataFetcher.fetch(url)
-                                            if (title.isBlank()) title = meta.title
-                                            if (imageUrl == null) imageUrl = meta.imageUrl
-                                            if (faviconUrl == null) faviconUrl = meta.faviconUrl
-                                            isLoadingMeta = false
+                            IconButton(onClick = {
+                                if (url.isNotBlank()) {
+                                    isLoadingMeta = true
+                                    coroutineScope.launch {
+                                        val meta = MetadataFetcher.fetch(url)
+                                        title = meta.title
+                                        if (memo.isBlank() && meta.description != null) {
+                                            memo = meta.description
                                         }
+                                        imageUrl = meta.imageUrl
+                                        faviconUrl = meta.faviconUrl
+                                        isLoadingMeta = false
                                     }
-                                },
-                                enabled = url.isNotBlank()
-                            ) {
+                                }
+                            }) {
                                 Icon(
                                     imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = "정보 자동 추출",
+                                    contentDescription = "메타데이터 자동 추출",
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                             }
@@ -135,49 +143,84 @@ fun AddEditBookmarkDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // 썸네일 미리보기
-                if (!imageUrl.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(imageUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "썸네일 미리보기",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    )
-                }
-
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // 제목
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("제목") },
+                    label = { Text("북마크 제목 *") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                // 미리보기 이미지 (있는 경우)
+                if (imageUrl != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(imageUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "미리보기 이미지",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(110.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // 메모 / 노트
+                // 메모 / 요약
                 OutlinedTextField(
                     value = memo,
                     onValueChange = { memo = it },
-                    label = { Text("메모 (선택사항)") },
+                    label = { Text("메모 또는 요약 (선택)") },
                     maxLines = 3,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // 폴더 선택
+                // 🌐 실행할 브라우저 지정 드롭다운
+                Text("실행할 브라우저 지정", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.height(4.dp))
+
+                val currentBrowserType = BrowserType.fromId(selectedBrowser)
+                ExposedDropdownMenuBox(
+                    expanded = browserDropdownExpanded,
+                    onExpandedChange = { browserDropdownExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = currentBrowserType.displayName,
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = browserDropdownExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = browserDropdownExpanded,
+                        onDismissRequest = { browserDropdownExpanded = false }
+                    ) {
+                        BrowserType.entries.forEach { b ->
+                            DropdownMenuItem(
+                                text = { Text(b.displayName) },
+                                onClick = {
+                                    selectedBrowser = b.id
+                                    browserDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 보관할 폴더 선택
                 Text("보관할 폴더", style = MaterialTheme.typography.labelMedium)
                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -194,7 +237,7 @@ fun AddEditBookmarkDialog(
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = folderDropdownExpanded) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
                     )
                     ExposedDropdownMenu(
                         expanded = folderDropdownExpanded,
@@ -261,7 +304,6 @@ fun AddEditBookmarkDialog(
                             InputChip(
                                 selected = true,
                                 onClick = {
-                                    // 칩 클릭 시 제거
                                     currentTags = currentTags.filter { it != tag }
                                 },
                                 label = { Text("#$tag ✕") }
@@ -284,7 +326,7 @@ fun AddEditBookmarkDialog(
                         remainingTags.take(8).forEach { tag ->
                             SuggestionChip(
                                 onClick = { addTag(tag.name) },
-                                label = { Text("+ #${tag.name}") }
+                                label = { Text("#${tag.name}") }
                             )
                         }
                     }
@@ -301,6 +343,7 @@ fun AddEditBookmarkDialog(
                             memo = memo.trim().ifBlank { null },
                             imageUrl = imageUrl,
                             faviconUrl = faviconUrl,
+                            preferredBrowser = selectedBrowser,
                             folderId = selectedFolderId,
                             updatedAt = System.currentTimeMillis()
                         ) ?: BookmarkEntity(
@@ -309,8 +352,12 @@ fun AddEditBookmarkDialog(
                             memo = memo.trim().ifBlank { null },
                             imageUrl = imageUrl,
                             faviconUrl = faviconUrl,
+                            preferredBrowser = selectedBrowser,
                             folderId = selectedFolderId
                         )
+                        if (selectedBrowser != "default") {
+                            prefs.edit().putString("last_browser", selectedBrowser).apply()
+                        }
                         onConfirm(entity, currentTags)
                     }
                 },

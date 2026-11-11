@@ -19,6 +19,7 @@ interface AddEditBookmarkModalProps {
     tags: string[];
     preferredBrowser?: BrowserType;
   }) => void;
+  defaultBrowser?: BrowserType;
 }
 
 export const AddEditBookmarkModal: React.FC<AddEditBookmarkModalProps> = ({
@@ -26,6 +27,7 @@ export const AddEditBookmarkModal: React.FC<AddEditBookmarkModalProps> = ({
   defaultFolderId,
   folders,
   tags,
+  defaultBrowser,
   onClose,
   onSave,
 }) => {
@@ -38,7 +40,7 @@ export const AddEditBookmarkModal: React.FC<AddEditBookmarkModalProps> = ({
     initialBookmark ? initialBookmark.folderId : defaultFolderId
   );
   const [preferredBrowser, setPreferredBrowser] = useState<BrowserType>(
-    initialBookmark?.preferredBrowser || 'default'
+    initialBookmark?.preferredBrowser || defaultBrowser || 'default'
   );
   const [currentTags, setCurrentTags] = useState<string[]>(initialBookmark?.tags || []);
   const [tagInput, setTagInput] = useState('');

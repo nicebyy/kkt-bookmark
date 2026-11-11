@@ -15,23 +15,23 @@ import kotlinx.coroutines.flow.Flow
 interface BookmarkDao {
 
     @Transaction
-    @Query("SELECT * FROM bookmarks WHERE (:folderId IS NULL AND folderId IS NULL) OR folderId = :folderId ORDER BY createdAt DESC")
+    @Query("SELECT * FROM bookmarks WHERE (:folderId IS NULL AND folderId IS NULL) OR folderId = :folderId ORDER BY sortOrder ASC, createdAt DESC")
     fun getBookmarksInFolder(folderId: Long?): Flow<List<BookmarkWithTags>>
 
     @Transaction
-    @Query("SELECT * FROM bookmarks ORDER BY createdAt DESC")
+    @Query("SELECT * FROM bookmarks ORDER BY sortOrder ASC, createdAt DESC")
     fun getAllBookmarks(): Flow<List<BookmarkWithTags>>
 
     @Transaction
-    @Query("SELECT * FROM bookmarks ORDER BY createdAt DESC")
+    @Query("SELECT * FROM bookmarks ORDER BY sortOrder ASC, createdAt DESC")
     suspend fun getAllBookmarksList(): List<BookmarkWithTags>
 
     @Transaction
-    @Query("SELECT * FROM bookmarks WHERE isFavorite = 1 ORDER BY createdAt DESC")
+    @Query("SELECT * FROM bookmarks WHERE isFavorite = 1 ORDER BY sortOrder ASC, createdAt DESC")
     fun getFavoriteBookmarks(): Flow<List<BookmarkWithTags>>
 
     @Transaction
-    @Query("SELECT * FROM bookmarks WHERE isRead = 0 ORDER BY createdAt DESC")
+    @Query("SELECT * FROM bookmarks WHERE isRead = 0 ORDER BY sortOrder ASC, createdAt DESC")
     fun getUnreadBookmarks(): Flow<List<BookmarkWithTags>>
 
     @Transaction
@@ -42,12 +42,15 @@ interface BookmarkDao {
     @Query("SELECT * FROM bookmarks WHERE id = :id LIMIT 1")
     suspend fun getBookmarkByIdSync(id: Long): BookmarkWithTags?
 
+    @Query("SELECT * FROM bookmarks WHERE (:folderId IS NULL AND folderId IS NULL) OR folderId = :folderId ORDER BY sortOrder ASC, createdAt DESC")
+    suspend fun getBookmarksListInFolder(folderId: Long?): List<BookmarkEntity>
+
     @Transaction
     @Query("""
         SELECT b.* FROM bookmarks b
         INNER JOIN bookmark_tag_cross_ref r ON b.id = r.bookmarkId
         WHERE r.tagId = :tagId
-        ORDER BY b.createdAt DESC
+        ORDER BY b.sortOrder ASC, b.createdAt DESC
     """)
     fun getBookmarksByTag(tagId: Long): Flow<List<BookmarkWithTags>>
 
@@ -61,7 +64,7 @@ interface BookmarkDao {
            OR b.memo LIKE '%' || :query || '%'
            OR b.url LIKE '%' || :query || '%'
            OR t.name LIKE '%' || :query || '%'
-        ORDER BY b.createdAt DESC
+        ORDER BY b.sortOrder ASC, b.createdAt DESC
     """)
     fun searchBookmarks(query: String): Flow<List<BookmarkWithTags>>
 
@@ -85,4 +88,7 @@ interface BookmarkDao {
 
     @Query("UPDATE bookmarks SET folderId = :newFolderId WHERE id = :id")
     suspend fun moveBookmarkToFolder(id: Long, newFolderId: Long?)
+
+    @Query("UPDATE bookmarks SET sortOrder = :sortOrder WHERE id = :id")
+    suspend fun updateSortOrder(id: Long, sortOrder: Int)
 }

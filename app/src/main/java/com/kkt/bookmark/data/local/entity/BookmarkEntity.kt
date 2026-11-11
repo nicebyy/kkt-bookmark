@@ -8,7 +8,7 @@ import androidx.room.PrimaryKey
 /**
  * 북마크 엔티티.
  * 특정 폴더(folderId)에 소속될 수 있으며, null일 경우 루트/미분류 상태입니다.
- * 폴더 삭제 시 SET_NULL 처리하여 북마크 데이터가 유실되지 않도록 보호합니다.
+ * preferredBrowser: 링크를 열 때 사용할 브라우저 식별자 (default, samsung, chrome, naver 등)
  */
 @Entity(
     tableName = "bookmarks",
@@ -38,6 +38,8 @@ data class BookmarkEntity(
     val memo: String? = null,
     val imageUrl: String? = null,
     val faviconUrl: String? = null,
+    val preferredBrowser: String? = "default",
+    val sortOrder: Int = 0,
     val isFavorite: Boolean = false,
     val isRead: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),

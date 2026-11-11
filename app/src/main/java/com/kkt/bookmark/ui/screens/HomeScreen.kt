@@ -1,5 +1,6 @@
 package com.kkt.bookmark.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -78,6 +79,19 @@ fun HomeScreen(
     val allTags by viewModel.allTags.collectAsState()
     val subFolders by viewModel.subFolders.collectAsState()
     val bookmarks by viewModel.bookmarks.collectAsState()
+
+    // 스마트폰 뒤로가기 제어: 루트가 아니거나 필터 적용 중일 때 상위 폴더/기본 상태로 이동
+    val currentFolder = allFolders.find { it.id == currentFolderId }
+    val isNotRoot = currentFolderId != null || selectedTagId != null || currentFilter != BookmarkFilterType.ALL
+    BackHandler(enabled = isNotRoot) {
+        if (selectedTagId != null) {
+            viewModel.selectTag(null)
+        } else if (currentFilter != BookmarkFilterType.ALL) {
+            viewModel.setFilter(BookmarkFilterType.ALL)
+        } else if (currentFolderId != null) {
+            viewModel.navigateToFolder(currentFolder?.parentId)
+        }
+    }
 
     // 다이얼로그 상태들
     var showAddBookmarkDialog by remember { mutableStateOf(false) }
@@ -224,7 +238,7 @@ fun HomeScreen(
                         .padding(32.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterVertically) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             imageVector = Icons.Default.Inbox,
                             contentDescription = null,
@@ -299,7 +313,7 @@ fun HomeScreen(
                                 bookmarkWithTags = bmWithTags,
                                 onClick = {
                                     viewModel.toggleRead(bmWithTags.bookmark.id, true)
-                                    LinkOpener.openUrl(context, bmWithTags.bookmark.url)
+                                    LinkOpener.openUrl(context, bmWithTags.bookmark.url, bmWithTags.bookmark.preferredBrowser)
                                 },
                                 onToggleFavorite = {
                                     viewModel.toggleFavorite(bmWithTags.bookmark.id, !bmWithTags.bookmark.isFavorite)
@@ -312,6 +326,9 @@ fun HomeScreen(
                                 },
                                 onMove = {
                                     bookmarkToMove = bmWithTags.bookmark
+                                },
+                                onMoveOrder = { dir ->
+                                    viewModel.moveBookmarkOrder(bmWithTags.bookmark.id, dir)
                                 },
                                 onShare = {
                                     LinkOpener.shareLink(context, bmWithTags.bookmark.title, bmWithTags.bookmark.url)

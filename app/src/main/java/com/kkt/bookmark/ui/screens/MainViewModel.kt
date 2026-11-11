@@ -176,4 +176,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.moveBookmark(bookmarkId, targetFolderId)
         }
     }
+
+    fun moveBookmarkOrder(bookmarkId: Long, direction: Int) {
+        viewModelScope.launch {
+            repository.moveBookmarkOrder(bookmarkId, direction)
+        }
+    }
 }

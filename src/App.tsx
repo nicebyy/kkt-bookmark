@@ -34,6 +34,7 @@ export const App: React.FC = () => {
     toggleFavorite,
     toggleRead,
     moveBookmark,
+    moveBookmarkOrder,
     saveFolder,
     deleteFolder,
   } = useBookmarks();
@@ -129,6 +130,7 @@ export const App: React.FC = () => {
           onToggleRead={toggleRead}
           onEditBookmark={(bm) => setEditingBookmark(bm)}
           onMoveBookmark={(bm) => setMovingBookmark(bm)}
+          onMoveOrder={moveBookmarkOrder}
           onDeleteBookmark={(id) => {
             if (confirm('이 북마크를 삭제하시겠습니까?')) {
               deleteBookmark(id);
@@ -152,6 +154,7 @@ export const App: React.FC = () => {
           folders={folders}
           tags={tags}
           currentFolderId={currentFolderId}
+          defaultBrowser={defaultBrowser}
           showAddBookmark={showAddBookmark}
           onCloseAddBookmark={() => setShowAddBookmark(false)}
           onSaveBookmark={(data) => {

@@ -5,54 +5,47 @@ const BOOKMARKS_KEY = 'kkt_bookmark_items';
 const TAGS_KEY = 'kkt_bookmark_tags';
 const DEFAULT_BROWSER_KEY = 'kkt_bookmark_default_browser';
 
-// 기본 샘플 데이터
-const initialFolders: Folder[] = [
-  { id: 'f-dev', name: '💻 개발 및 기술', parentId: null, color: FOLDER_COLORS[0], createdAt: Date.now() - 50000 },
-  { id: 'f-life', name: '☕ 일상 및 취미', parentId: null, color: FOLDER_COLORS[1], createdAt: Date.now() - 40000 },
-  { id: 'f-read', name: '📚 나중에 읽을 글', parentId: null, color: FOLDER_COLORS[3], createdAt: Date.now() - 30000 },
-  // 2단계 하위 폴더 (트리 구조)
-  { id: 'f-android', name: '안드로이드 & Kotlin', parentId: 'f-dev', color: FOLDER_COLORS[4], createdAt: Date.now() - 20000 },
-  { id: 'f-ai', name: '인공지능 & LLM', parentId: 'f-dev', color: FOLDER_COLORS[5], createdAt: Date.now() - 10000 },
-];
+const CLEANUP_KEY = 'kkt_bookmark_cleaned_samples_v1';
 
-const initialTags: Tag[] = [
-  { id: 't-1', name: '튜토리얼', color: '#00acc1' },
-  { id: 't-2', name: '레퍼런스', color: '#5e35b1' },
-  { id: 't-3', name: '꿀팁', color: '#e53935' },
-];
+// 기본 데이터: 빈 상태로 시작
+const initialFolders: Folder[] = [];
+const initialTags: Tag[] = [];
+const initialBookmarks: Bookmark[] = [];
 
-const initialBookmarks: Bookmark[] = [
-  {
-    id: 'b-1',
-    folderId: 'f-android',
-    url: 'https://developer.android.com/jetpack/compose',
-    title: 'Jetpack Compose 공식 가이드',
-    description: '선언형 UI 툴킷으로 현대적인 네이티브 안드로이드 앱을 빠르게 제작하세요.',
-    memo: '광고 없이 깔끔하게 관리하는 첫 번째 공식 튜토리얼 북마크!',
-    imageUrl: 'https://developer.android.com/static/images/social/android-developers.png',
-    faviconUrl: 'https://www.google.com/s2/favicons?domain=developer.android.com&sz=128',
-    tags: ['튜토리얼', '레퍼런스'],
-    isFavorite: true,
-    isRead: false,
-    createdAt: Date.now() - 10000,
-    updatedAt: Date.now() - 10000,
-  },
-  {
-    id: 'b-2',
-    folderId: 'f-ai',
-    url: 'https://github.com',
-    title: 'GitHub - 빌더와 개발자들의 오픈소스 허브',
-    description: '전 세계 개발자들이 함께 코드를 공유하고 협업하는 플랫폼입니다.',
-    memo: '오픈소스 프로젝트 검색용',
-    imageUrl: 'https://github.githubassets.com/images/modules/open_graph/github-logo.png',
-    faviconUrl: 'https://www.google.com/s2/favicons?domain=github.com&sz=128',
-    tags: ['레퍼런스', '꿀팁'],
-    isFavorite: false,
-    isRead: true,
-    createdAt: Date.now() - 5000,
-    updatedAt: Date.now() - 5000,
+// 기존 로컬스토리지에 저장된 예시 데이터 1회성 정리
+function cleanupExistingSamples() {
+  if (typeof window === 'undefined') return;
+  if (localStorage.getItem(CLEANUP_KEY)) return;
+
+  try {
+    const rawFolders = localStorage.getItem(FOLDERS_KEY);
+    if (rawFolders) {
+      const folders: Folder[] = JSON.parse(rawFolders);
+      const filtered = folders.filter(f => !['f-dev', 'f-life', 'f-read', 'f-android', 'f-ai'].includes(f.id));
+      localStorage.setItem(FOLDERS_KEY, JSON.stringify(filtered));
+    }
+
+    const rawBookmarks = localStorage.getItem(BOOKMARKS_KEY);
+    if (rawBookmarks) {
+      const bms: Bookmark[] = JSON.parse(rawBookmarks);
+      const filtered = bms.filter(b => !['b-1', 'b-2'].includes(b.id));
+      localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(filtered));
+    }
+
+    const rawTags = localStorage.getItem(TAGS_KEY);
+    if (rawTags) {
+      const tags: Tag[] = JSON.parse(rawTags);
+      const filtered = tags.filter(t => !['튜토리얼', '레퍼런스', '꿀팁'].includes(t.name));
+      localStorage.setItem(TAGS_KEY, JSON.stringify(filtered));
+    }
+  } catch (e) {
+    console.error('Failed to clean up sample data:', e);
+  } finally {
+    localStorage.setItem(CLEANUP_KEY, 'true');
   }
-];
+}
+
+cleanupExistingSamples();
 
 export const storage = {
   getFolders(): Folder[] {
@@ -122,19 +115,51 @@ export const storage = {
 
   getBookmarks(): Bookmark[] {
     const raw = localStorage.getItem(BOOKMARKS_KEY);
-    if (!raw) {
-      this.setBookmarks(initialBookmarks);
-      return initialBookmarks;
+    let items: Bookmark[] = initialBookmarks;
+    if (raw) {
+      try {
+        items = JSON.parse(raw);
+      } catch {
+        items = initialBookmarks;
+      }
     }
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return initialBookmarks;
-    }
+    // sortOrder 오름차순, sortOrder가 같거나 없으면 createdAt 내림차순
+    return items.sort((a, b) => {
+      const orderA = a.sortOrder ?? 0;
+      const orderB = b.sortOrder ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
+      return b.createdAt - a.createdAt;
+    });
   },
 
   setBookmarks(bookmarks: Bookmark[]) {
     localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks));
+  },
+
+  moveBookmarkOrder(id: string, direction: 'up' | 'down') {
+    const list = this.getBookmarks();
+    const target = list.find(b => b.id === id);
+    if (!target) return;
+
+    // 동일 폴더 내의 북마크들 사이에서 순서 변경
+    const folderItems = list.filter(b => b.folderId === target.folderId);
+    const idx = folderItems.findIndex(b => b.id === id);
+    if (idx === -1) return;
+
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= folderItems.length) return;
+
+    const other = folderItems[swapIdx];
+
+    // 인덱스 기반으로 깨끗하게 10 단위 재정렬 후 swap
+    folderItems.forEach((b, i) => {
+      b.sortOrder = i * 10;
+    });
+    const tempOrder = target.sortOrder!;
+    target.sortOrder = other.sortOrder!;
+    other.sortOrder = tempOrder;
+
+    this.setBookmarks(list);
   },
 
   getDefaultBrowser(): BrowserType {
@@ -177,6 +202,12 @@ export const storage = {
         return list[idx];
       }
     }
+    // 처음 지정한 브라우저를 기본 브라우저로 자동 기억
+    if (bookmark.preferredBrowser && bookmark.preferredBrowser !== 'default') {
+      this.setDefaultBrowser(bookmark.preferredBrowser);
+    }
+    const finalBrowser = bookmark.preferredBrowser || this.getDefaultBrowser();
+
     const newBookmark: Bookmark = {
       id: 'b-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
       url: bookmark.url,
@@ -189,7 +220,7 @@ export const storage = {
       tags: bookmark.tags,
       isFavorite: bookmark.isFavorite ?? false,
       isRead: bookmark.isRead ?? false,
-      preferredBrowser: bookmark.preferredBrowser,
+      preferredBrowser: finalBrowser,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };

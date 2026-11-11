@@ -56,17 +56,17 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* 우측 상단 액션들 */}
-        <div className="flex items-center gap-1">
-          {canInstall && (
-            <button
-              onClick={onInstallApp}
-              title="내 기기에 어플로 설치하기"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-all border border-blue-200"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>앱 설치</span>
-            </button>
-          )}
+        <div className="flex items-center gap-1.5">
+          {/* 안드로이드 APK 직접 다운로드 버튼 */}
+          <a
+            href="./kkt-bookmark.apk"
+            download="kkt-bookmark.apk"
+            title="스마트폰용 APK 파일 다운로드"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold transition-all shadow-sm shrink-0"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>APK 다운로드</span>
+          </a>
 
           <button
             onClick={onToggleSearch}

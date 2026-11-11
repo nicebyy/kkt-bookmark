@@ -1,7 +1,9 @@
 package com.kkt.bookmark.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,7 +21,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
@@ -27,6 +31,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,12 +52,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kkt.bookmark.data.local.entity.BookmarkWithTags
 import com.kkt.bookmark.data.local.entity.TagEntity
+import com.kkt.bookmark.data.model.BrowserType
+import com.kkt.bookmark.ui.util.LinkOpener
 import java.net.URI
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BookmarkCard(
     bookmarkWithTags: BookmarkWithTags,
@@ -61,210 +70,337 @@ fun BookmarkCard(
     onToggleRead: () -> Unit,
     onEdit: () -> Unit,
     onMove: () -> Unit,
+    onMoveOrder: ((direction: Int) -> Unit)? = null,
     onShare: () -> Unit,
     onDelete: () -> Unit,
     onTagClick: (TagEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val bookmark = bookmarkWithTags.bookmark
     val tags = bookmarkWithTags.tags
     var showMenu by remember { mutableStateOf(false) }
+    var showBrowserSubmenu by remember { mutableStateOf(false) }
 
-    val host = remember(bookmark.url) {
+    val rawHost = remember(bookmark.url) {
         try {
             URI(bookmark.url).host ?: bookmark.url
         } catch (e: Exception) {
             bookmark.url
         }
     }
+    val cleanHost = rawHost.removePrefix("www.")
+    val firstLetter = cleanHost.firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "W"
+    val faviconUrl = bookmark.faviconUrl ?: "https://www.google.com/s2/favicons?domain=$cleanHost&sz=128"
+    val browserType = BrowserType.fromId(bookmark.preferredBrowser)
 
     Card(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .clickable { onClick() },
+            .combinedClickable(
+                onClick = { onClick() },
+                onLongClick = { onEdit() }
+            ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            // 상단 행: 파비콘 + 호스트 도메인 + 더보기/즐겨찾기 액션들
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            // 좌측: 직관적인 사이트 파비콘/로고 아이콘 (40x40dp 둥근 박스)
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.Center
             ) {
-                // 파비콘
-                if (bookmark.faviconUrl != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(bookmark.faviconUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                }
-
                 Text(
-                    text = host,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
+                    text = firstLetter,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
 
-                // 읽음 표시 토글
-                IconButton(
-                    onClick = onToggleRead,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        imageVector = if (bookmark.isRead) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                        contentDescription = if (bookmark.isRead) "읽음" else "안읽음",
-                        modifier = Modifier.size(18.dp),
-                        tint = if (bookmark.isRead) Color(0xFF10B981) else MaterialTheme.colorScheme.outline
-                    )
-                }
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(faviconUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
 
-                // 즐겨찾기 토글
-                IconButton(
-                    onClick = onToggleFavorite,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        imageVector = if (bookmark.isFavorite) Icons.Default.Star else Icons.Outlined.StarOutline,
-                        contentDescription = "즐겨찾기",
-                        modifier = Modifier.size(20.dp),
-                        tint = if (bookmark.isFavorite) Color(0xFFF59E0B) else MaterialTheme.colorScheme.outline
-                    )
-                }
+            Spacer(modifier = Modifier.width(10.dp))
 
-                // 더보기 메뉴
-                Box {
+            // 우측 전체 영역: [도메인 + 브라우저 뱃지 + 액션버튼], [제목 + 우측 썸네일], [태그]
+            Column(modifier = Modifier.weight(1f)) {
+                // 상단 헤더: 도메인 + 브라우저 뱃지 + 읽음/즐겨찾기/더보기
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = cleanHost,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    // 🌐 특정 브라우저 지정 뱃지 (기본 브라우저가 아닐 때 눈에 띄게 표시)
+                    if (browserType != BrowserType.DEFAULT) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(browserType.badgeColor).copy(alpha = 0.15f))
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = browserType.displayName.split(" ")[0],
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(browserType.badgeColor)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // ✏️ 북마크 수정 바로가기 버튼
                     IconButton(
-                        onClick = { showMenu = true },
-                        modifier = Modifier.size(28.dp)
+                        onClick = onEdit,
+                        modifier = Modifier.size(26.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "메뉴",
-                            modifier = Modifier.size(18.dp),
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "수정",
+                            modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.outline
                         )
                     }
 
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
+                    // 읽음 토글
+                    IconButton(
+                        onClick = onToggleRead,
+                        modifier = Modifier.size(26.dp)
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("북마크 수정") },
-                            onClick = {
-                                showMenu = false
-                                onEdit()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("다른 폴더로 이동") },
-                            onClick = {
-                                showMenu = false
-                                onMove()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("링크 공유하기") },
-                            onClick = {
-                                showMenu = false
-                                onShare()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("삭제", color = MaterialTheme.colorScheme.error) },
-                            onClick = {
-                                showMenu = false
-                                onDelete()
-                            }
+                        Icon(
+                            imageVector = if (bookmark.isRead) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                            contentDescription = if (bookmark.isRead) "읽음" else "안읽음",
+                            modifier = Modifier.size(17.dp),
+                            tint = if (bookmark.isRead) Color(0xFF10B981) else MaterialTheme.colorScheme.outline
                         )
                     }
+
+                    // 즐겨찾기 토글
+                    IconButton(
+                        onClick = onToggleFavorite,
+                        modifier = Modifier.size(26.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (bookmark.isFavorite) Icons.Default.Star else Icons.Outlined.StarOutline,
+                            contentDescription = "즐겨찾기",
+                            modifier = Modifier.size(19.dp),
+                            tint = if (bookmark.isFavorite) Color(0xFFF59E0B) else MaterialTheme.colorScheme.outline
+                        )
+                    }
+
+                    // 더보기 메뉴
+                    Box {
+                        IconButton(
+                            onClick = {
+                                showMenu = true
+                                showBrowserSubmenu = false
+                            },
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "메뉴",
+                                modifier = Modifier.size(17.dp),
+                                tint = MaterialTheme.colorScheme.outline
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = {
+                                showMenu = false
+                                showBrowserSubmenu = false
+                            }
+                        ) {
+                            if (!showBrowserSubmenu) {
+                                DropdownMenuItem(
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.OpenInBrowser,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    text = { Text("브라우저 선택 실행 ▶") },
+                                    onClick = { showBrowserSubmenu = true }
+                                )
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("북마크 수정") },
+                                    onClick = {
+                                        showMenu = false
+                                        onEdit()
+                                    }
+                                )
+                                if (onMoveOrder != null) {
+                                    DropdownMenuItem(
+                                        text = { Text("위로 이동 (▲)") },
+                                        onClick = {
+                                            showMenu = false
+                                            onMoveOrder(-1)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("아래로 이동 (▼)") },
+                                        onClick = {
+                                            showMenu = false
+                                            onMoveOrder(1)
+                                        }
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text("다른 폴더로 이동") },
+                                    onClick = {
+                                        showMenu = false
+                                        onMove()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("링크 공유하기") },
+                                    onClick = {
+                                        showMenu = false
+                                        onShare()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("삭제", color = MaterialTheme.colorScheme.error) },
+                                    onClick = {
+                                        showMenu = false
+                                        onDelete()
+                                    }
+                                )
+                            } else {
+                                // 브라우저 선택 서브메뉴
+                                Text(
+                                    text = "실행할 브라우저 선택",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                                HorizontalDivider()
+                                BrowserType.entries.forEach { b ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = b.displayName,
+                                                    fontWeight = if (b == browserType) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (b == browserType) MaterialTheme.colorScheme.primary else Color.Unspecified
+                                                )
+                                                if (b == browserType) {
+                                                    Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        },
+                                        onClick = {
+                                            showMenu = false
+                                            showBrowserSubmenu = false
+                                            LinkOpener.openUrl(context, bookmark.url, b.id)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
-            // 본문 콘텐츠: 썸네일(있으면 우측) + 제목 & 메모(좌측)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = bookmark.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    val note = bookmark.memo ?: bookmark.description
-                    if (!note.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                // 제목 + 우측 OG 썸네일 (있는 경우)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = note,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = bookmark.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
+
+                        if (!bookmark.memo.isNullOrBlank() || !bookmark.description.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = bookmark.memo ?: bookmark.description ?: "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    if (!bookmark.imageUrl.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(bookmark.imageUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
                     }
                 }
 
-                if (!bookmark.imageUrl.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.width(12.dp))
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(bookmark.imageUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "썸네일",
-                        contentScale = ContentScale.Crop,
+                // 태그 목록
+                if (tags.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
                         modifier = Modifier
-                            .size(72.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    )
-                }
-            }
-
-            // 하단: 태그 목록
-            if (tags.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    tags.forEach { tag ->
-                        SuggestionChip(
-                            onClick = { onTagClick(tag) },
-                            label = {
-                                Text(
-                                    text = "#${tag.name}",
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            },
-                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = Color(tag.color).copy(alpha = 0.12f),
-                                labelColor = Color(tag.color)
-                            ),
-                            border = null,
-                            modifier = Modifier.height(26.dp)
-                        )
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        tags.forEach { tag ->
+                            SuggestionChip(
+                                onClick = { onTagClick(tag) },
+                                label = { Text("#${tag.name}", style = MaterialTheme.typography.labelSmall) },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                                    labelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                ),
+                                border = null,
+                                modifier = Modifier.height(26.dp)
+                            )
+                        }
                     }
                 }
             }

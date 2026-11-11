@@ -25,6 +25,7 @@ export interface Bookmark {
   isFavorite: boolean;
   isRead: boolean;
   preferredBrowser?: BrowserType;
+  sortOrder?: number;
   createdAt: number;
   updatedAt: number;
 }

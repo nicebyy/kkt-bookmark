@@ -115,6 +115,40 @@ export function useBookmarks() {
     reloadData();
   }, [reloadData]);
 
+  const moveBookmarkOrder = useCallback((id: string, direction: 'up' | 'down') => {
+    storage.moveBookmarkOrder(id, direction);
+    reloadData();
+  }, [reloadData]);
+
+  // 브라우저 뒤로가기(History Popstate) 연동: 하위 폴더에서 뒤로가기 시 이전/부모 디렉토리로 이동
+  const navigateToFolder = useCallback((folderId: string | null) => {
+    setCurrentFolderId(folderId);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ folderId }, '');
+    }
+  }, []);
+
+  const navigateToParentFolder = useCallback(() => {
+    if (!currentFolderId) return;
+    const currentFolder = folders.find(f => f.id === currentFolderId);
+    navigateToFolder(currentFolder?.parentId ?? null);
+  }, [currentFolderId, folders, navigateToFolder]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!window.history.state) {
+      window.history.replaceState({ folderId: null }, '');
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      const stateFolderId = e.state?.folderId ?? null;
+      setCurrentFolderId(stateFolderId);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const saveFolder = useCallback((data: Parameters<typeof storage.saveFolder>[0]) => {
     storage.saveFolder(data);
     reloadData();
@@ -126,11 +160,11 @@ export function useBookmarks() {
   }, [reloadData]);
 
   const resetNavigation = useCallback(() => {
-    setCurrentFolderId(null);
+    navigateToFolder(null);
     setSelectedTag(null);
     setFilter('ALL');
     setSearchQuery('');
-  }, []);
+  }, [navigateToFolder]);
 
   return {
     // 상태
@@ -148,7 +182,8 @@ export function useBookmarks() {
     folderStats,
 
     // 세터
-    setCurrentFolderId,
+    setCurrentFolderId: navigateToFolder,
+    navigateToParentFolder,
     setSearchQuery,
     setSelectedTag,
     setFilter,
@@ -161,6 +196,7 @@ export function useBookmarks() {
     toggleFavorite,
     toggleRead,
     moveBookmark,
+    moveBookmarkOrder,
     saveFolder,
     deleteFolder,
   };

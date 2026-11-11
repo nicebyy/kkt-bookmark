@@ -98,7 +98,7 @@ fun SearchScreen(
                         .padding(32.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterVertically) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             imageVector = Icons.Default.SearchOff,
                             contentDescription = null,
@@ -132,7 +132,7 @@ fun SearchScreen(
                             bookmarkWithTags = bmWithTags,
                             onClick = {
                                 viewModel.toggleRead(bmWithTags.bookmark.id, true)
-                                LinkOpener.openUrl(context, bmWithTags.bookmark.url)
+                                LinkOpener.openUrl(context, bmWithTags.bookmark.url, bmWithTags.bookmark.preferredBrowser)
                             },
                             onToggleFavorite = {
                                 viewModel.toggleFavorite(bmWithTags.bookmark.id, !bmWithTags.bookmark.isFavorite)

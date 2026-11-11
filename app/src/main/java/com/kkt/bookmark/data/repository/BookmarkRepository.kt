@@ -151,4 +151,24 @@ class BookmarkRepository(private val db: AppDatabase) {
     suspend fun moveBookmark(bookmarkId: Long, newFolderId: Long?) = withContext(Dispatchers.IO) {
         bookmarkDao.moveBookmarkToFolder(bookmarkId, newFolderId)
     }
+
+    suspend fun moveBookmarkOrder(bookmarkId: Long, direction: Int) = withContext(Dispatchers.IO) {
+        val target = bookmarkDao.getBookmarkByIdSync(bookmarkId)?.bookmark ?: return@withContext
+        val list = bookmarkDao.getBookmarksListInFolder(target.folderId).toMutableList()
+        val currentIndex = list.indexOfFirst { it.id == bookmarkId }
+        if (currentIndex == -1) return@withContext
+
+        val targetIndex = if (direction < 0) currentIndex - 1 else currentIndex + 1
+        if (targetIndex < 0 || targetIndex >= list.size) return@withContext
+
+        // 두 아이템의 순서 교체
+        val temp = list[currentIndex]
+        list[currentIndex] = list[targetIndex]
+        list[targetIndex] = temp
+
+        // 새로운 리스트 순서에 맞게 sortOrder를 0, 1, 2... 로 일괄 재부여하여 항상 결정론적으로 정렬 유지
+        list.forEachIndexed { index, item ->
+            bookmarkDao.updateSortOrder(item.id, index)
+        }
+    }
 }

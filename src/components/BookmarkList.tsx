@@ -19,6 +19,7 @@ interface BookmarkListProps {
   onToggleRead: (id: string) => void;
   onEditBookmark: (bookmark: Bookmark) => void;
   onMoveBookmark: (bookmark: Bookmark) => void;
+  onMoveOrder?: (id: string, direction: 'up' | 'down') => void;
   onDeleteBookmark: (id: string) => void;
   onSelectTag: (tag: string) => void;
   onOpenAddBookmark: () => void;
@@ -39,6 +40,7 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
   onToggleRead,
   onEditBookmark,
   onMoveBookmark,
+  onMoveOrder,
   onDeleteBookmark,
   onSelectTag,
   onOpenAddBookmark,
@@ -115,6 +117,7 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
                 onToggleRead={() => onToggleRead(bookmark.id)}
                 onEdit={() => onEditBookmark(bookmark)}
                 onMove={() => onMoveBookmark(bookmark)}
+                onMoveOrder={onMoveOrder ? (dir) => onMoveOrder(bookmark.id, dir) : undefined}
                 onDelete={() => onDeleteBookmark(bookmark.id)}
                 onTagClick={onSelectTag}
               />

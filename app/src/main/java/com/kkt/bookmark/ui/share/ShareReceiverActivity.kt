@@ -33,6 +33,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -58,6 +59,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kkt.bookmark.BookmarkApp
 import com.kkt.bookmark.data.local.entity.BookmarkEntity
+import com.kkt.bookmark.data.model.BrowserType
 import com.kkt.bookmark.data.repository.MetadataFetcher
 import com.kkt.bookmark.ui.theme.KKTBookmarkTheme
 import kotlinx.coroutines.launch
@@ -67,12 +69,23 @@ class ShareReceiverActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val rawText = intent.getStringExtra(Intent.EXTRA_TEXT) ?: ""
+        // 외부 공유 Intent (ACTION_SEND) 수신
+        val rawText = intent?.getStringExtra(Intent.EXTRA_TEXT)
+            ?: intent?.getStringExtra(Intent.EXTRA_STREAM)
+            ?: intent?.dataString
+            ?: ""
+
+        if (rawText.isBlank()) {
+            Toast.makeText(this, "공유된 링크가 없습니다.", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+
         val initialUrl = MetadataFetcher.extractUrlFromText(rawText) ?: rawText.trim()
 
         setContent {
             KKTBookmarkTheme {
-                ShareBottomSheet(
+                ShareSaveBottomSheet(
                     initialUrl = initialUrl,
                     onDismiss = { finish() },
                     onSaved = {
@@ -87,14 +100,14 @@ class ShareReceiverActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ShareBottomSheet(
+fun ShareSaveBottomSheet(
     initialUrl: String,
     onDismiss: () -> Unit,
     onSaved: () -> Unit
 ) {
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val repository = (context.applicationContext as BookmarkApp).repository
+    val app = LocalContext.current.applicationContext as BookmarkApp
+    val repository = app.repository
 
     val allFolders by repository.getAllFolders().collectAsState(initial = emptyList())
     val allTags by repository.getAllTags().collectAsState(initial = emptyList())
@@ -105,12 +118,13 @@ fun ShareBottomSheet(
     var imageUrl by remember { mutableStateOf<String?>(null) }
     var faviconUrl by remember { mutableStateOf<String?>(null) }
     var selectedFolderId by remember { mutableStateOf<Long?>(null) }
+    var selectedBrowser by remember { mutableStateOf("default") }
     var tagInput by remember { mutableStateOf("") }
     var currentTags by remember { mutableStateOf(listOf<String>()) }
     var isLoadingMeta by remember { mutableStateOf(true) }
     var folderDropdownExpanded by remember { mutableStateOf(false) }
+    var browserDropdownExpanded by remember { mutableStateOf(false) }
 
-    // 시작 시 메타데이터 자동 추출
     LaunchedEffect(initialUrl) {
         if (initialUrl.isNotBlank()) {
             val meta = MetadataFetcher.fetch(initialUrl)
@@ -131,7 +145,6 @@ fun ShareBottomSheet(
         tagInput = ""
     }
 
-    // 반투명 배경 위에 뜬 바텀시트 컨테이너
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -142,7 +155,7 @@ fun ShareBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                .clickable(enabled = false) {}, // 클릭 이벤트 차단
+                .clickable(enabled = false) {},
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp
         ) {
@@ -160,41 +173,23 @@ fun ShareBottomSheet(
                         imageVector = Icons.Default.BookmarkAdded,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(26.dp)
+                        modifier = Modifier.size(24.dp)
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "북마크 즉시 저장",
-                        style = MaterialTheme.typography.titleLarge,
+                        text = "빠른 북마크 저장",
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     if (isLoadingMeta) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // 썸네일 미리보기 (있을 경우)
-                if (!imageUrl.isNullOrBlank()) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(imageUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(110.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
-
-                // 제목 입력
+                // 제목
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -202,6 +197,40 @@ fun ShareBottomSheet(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 실행할 브라우저 지정 드롭다운
+                val currentBrowserType = BrowserType.fromId(selectedBrowser)
+                ExposedDropdownMenuBox(
+                    expanded = browserDropdownExpanded,
+                    onExpandedChange = { browserDropdownExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = currentBrowserType.displayName,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("실행할 브라우저") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = browserDropdownExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = browserDropdownExpanded,
+                        onDismissRequest = { browserDropdownExpanded = false }
+                    ) {
+                        BrowserType.entries.forEach { b ->
+                            DropdownMenuItem(
+                                text = { Text(b.displayName) },
+                                onClick = {
+                                    selectedBrowser = b.id
+                                    browserDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -220,7 +249,7 @@ fun ShareBottomSheet(
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = folderDropdownExpanded) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
                     )
                     ExposedDropdownMenu(
                         expanded = folderDropdownExpanded,
@@ -254,24 +283,17 @@ fun ShareBottomSheet(
                 ) {
                     OutlinedTextField(
                         value = tagInput,
-                        onValueChange = {
-                            if (it.endsWith(" ") || it.endsWith(",")) {
-                                addTag(it.replace(",", "").trim())
-                            } else {
-                                tagInput = it
-                            }
-                        },
-                        label = { Text("태그 입력 (#개발, #팁)") },
+                        onValueChange = { tagInput = it },
+                        label = { Text("태그 입력") },
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     TextButton(onClick = { addTag(tagInput) }) {
                         Text("추가")
                     }
                 }
 
-                // 태그 칩들
                 if (currentTags.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(6.dp))
                     Row(
@@ -310,6 +332,7 @@ fun ShareBottomSheet(
                                     memo = memo.trim().ifBlank { null },
                                     imageUrl = imageUrl,
                                     faviconUrl = faviconUrl,
+                                    preferredBrowser = selectedBrowser,
                                     folderId = selectedFolderId
                                 )
                                 repository.saveBookmark(bookmark, currentTags)

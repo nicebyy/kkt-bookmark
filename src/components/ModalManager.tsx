@@ -32,7 +32,7 @@ interface ModalManagerProps {
   onSaveEditFolder: (data: any) => void;
   onDeleteFolder: (folderId: string) => void;
 
-  // 폴더 트리 & 설정
+  defaultBrowser?: any;
   showFolderTree: boolean;
   onCloseFolderTree: () => void;
   onSelectFolderFromTree: (folderId: string) => void;
@@ -46,6 +46,7 @@ export const ModalManager: React.FC<ModalManagerProps> = ({
   folders,
   tags,
   currentFolderId,
+  defaultBrowser,
 
   showAddBookmark,
   onCloseAddBookmark,
@@ -82,6 +83,7 @@ export const ModalManager: React.FC<ModalManagerProps> = ({
           defaultFolderId={currentFolderId}
           folders={folders}
           tags={tags}
+          defaultBrowser={defaultBrowser}
           onClose={onCloseAddBookmark}
           onSave={onSaveBookmark}
         />
@@ -94,6 +96,7 @@ export const ModalManager: React.FC<ModalManagerProps> = ({
           defaultFolderId={editingBookmark.folderId}
           folders={folders}
           tags={tags}
+          defaultBrowser={defaultBrowser}
           onClose={onCloseEditBookmark}
           onSave={onSaveEditBookmark}
         />
