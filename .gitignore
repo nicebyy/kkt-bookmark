@@ -28,6 +28,9 @@ lerna-debug.log*
 .env.test.local
 .env.production.local
 local.properties
+GEMINI.md
+gemini.md
+*.bak
 
 # IDE & Editors
 .idea/
